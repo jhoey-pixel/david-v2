@@ -142,7 +142,7 @@
         <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" required />
         <button type="submit">Send</button>
       </form>
-      <p class="hint">David replies in: Acknowledge → Orient → Clarify (one question).</p>
+      <p class="hint">David adapts tone to your emotional state: calm, concise, and human.</p>
     </main>
 
     <script>
@@ -162,22 +162,49 @@
         const normalized = userText.trim();
         const lower = normalized.toLowerCase();
 
-        let orient = "Let's take this one small step at a time.";
-        if (lower.includes('anxious') || lower.includes('overwhelmed') || lower.includes('stress')) {
-          orient = "You're not behind—your system may just need a steadier pace.";
-        } else if (lower.includes('work') || lower.includes('deadline') || lower.includes('project')) {
+        const hasAny = (terms) => terms.some((term) => lower.includes(term));
+
+        const state = (() => {
+          if (hasAny(['tired', 'exhausted', 'drained', 'burned out', 'burnt out', 'wiped'])) return 'exhaustion';
+          if (hasAny(['overwhelmed', 'too much', 'drowning', 'swamped', 'can\'t keep up'])) return 'overwhelm';
+          if (hasAny(['confused', 'not sure', 'unclear', 'don\'t understand', 'lost'])) return 'confusion';
+          if (hasAny(['frustrated', 'annoyed', 'angry', 'irritated', 'fed up'])) return 'frustration';
+          if (hasAny(['afraid', 'scared', 'fear', 'terrified', 'panic', 'worried'])) return 'fear';
+          return 'general';
+        })();
+
+        const preview = normalized
+          ? `"${normalized.slice(0, 90)}${normalized.length > 90 ? '…' : ''}"`
+          : 'that';
+
+        if (state === 'exhaustion') {
+          return `I hear the tiredness in ${preview}.\nThat sounds like depletion, not just a busy day.\nHas it felt more mental, emotional, or physical lately?`;
+        }
+
+        if (state === 'overwhelm') {
+          return `That sounds like a lot to carry right now.\nLet’s make this smaller so it feels doable.\nWhat is one piece we can focus on first?`;
+        }
+
+        if (state === 'confusion') {
+          return `I can hear the uncertainty in ${preview}.\nLet’s slow it down and get oriented.\nWhich part feels most unclear right now?`;
+        }
+
+        if (state === 'frustration') {
+          return `That sounds really frustrating.\nYou’re making sense, even if this feels tense.\nWhat part is bothering you the most?`;
+        }
+
+        if (state === 'fear') {
+          return `I hear that this feels scary right now.\nYou don’t have to figure everything out at once—we can go gently.\nWhat would help you feel a little safer in this moment?`;
+        }
+
+        let orient = "We can take this one steady step at a time.";
+        if (lower.includes('work') || lower.includes('deadline') || lower.includes('project')) {
           orient = "We can narrow this to the next practical move, not the whole mountain.";
         } else if (lower.includes('relationship') || lower.includes('family') || lower.includes('friend')) {
           orient = "It helps to stay with what you can express clearly and kindly right now.";
         }
 
-        const acknowledge = normalized
-          ? `I hear you: "${normalized.slice(0, 120)}${normalized.length > 120 ? '…' : ''}".`
-          : "I hear you.";
-
-        const clarify = "What feels most important to handle first?";
-
-        return `${acknowledge}\n${orient}\n${clarify}`;
+        return `I hear you.\n${orient}\nWhat feels most important right now?`;
       }
 
       addMessage(
