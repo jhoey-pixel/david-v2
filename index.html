@@ -151,6 +151,7 @@
       const input = document.getElementById('chat-input');
       const memory = {
         askedTopics: new Set(),
+        lastTopic: null,
       };
 
       function addMessage(text, role) {
@@ -174,6 +175,12 @@
         const lower = normalized.toLowerCase();
 
         const hasAny = (terms) => terms.some((term) => lower.includes(term));
+        const looksLikeFollowUp = normalized.split(/\s+/).length <= 5;
+
+        const relationshipSignals = ['him', 'her', 'them', 'partner', 'relationship', 'friend', 'family', 'husband', 'wife', 'boyfriend', 'girlfriend'];
+        const conversationSignals = ['talk', 'talking', 'conversation', 'conversations', 'say', 'saying', 'honest', 'honestly', 'real conversation', 'hard to bring up'];
+        const relationshipConversation = hasAny(relationshipSignals) && hasAny(conversationSignals)
+          || hasAny(['real conversation with him', 'talking to him', 'talk to him', 'real conversation']);
 
         const state = (() => {
           if (hasAny(['tired', 'exhausted', 'drained', 'burned out', 'burnt out', 'wiped'])) return 'exhaustion';
@@ -193,7 +200,19 @@
           memory.askedTopics.add('drain-classification');
         }
 
+        if (relationshipConversation) {
+          memory.lastTopic = 'relationship-conversation';
+          return `It sounds like this really matters to you, and not just as small talk.
+What part feels hardest to say out loud when you talk with him?`;
+        }
+
+        if (memory.lastTopic === 'relationship-conversation' && looksLikeFollowUp) {
+          return `That hesitation usually means the relationship matters.
+Are you more worried about conflict, being misunderstood, or disappointing him?`;
+        }
+
         if (state === 'exhaustion') {
+          memory.lastTopic = 'exhaustion';
           if (!memory.askedTopics.has('drain-classification')) {
             memory.askedTopics.add('drain-classification');
             return `I hear the tiredness in ${preview}.\nThat sounds like depletion, not just a busy day.\nHas it felt more mental, emotional, or physical lately?`;
@@ -215,18 +234,22 @@
         }
 
         if (state === 'overwhelm') {
+          memory.lastTopic = 'overwhelm';
           return `That sounds like a lot to carry right now.\nLet’s make this smaller so it feels doable.\nWhat is one piece we can focus on first?`;
         }
 
         if (state === 'confusion') {
+          memory.lastTopic = 'confusion';
           return `I can hear the uncertainty in ${preview}.\nLet’s slow it down and get oriented.\nWhich part feels most unclear right now?`;
         }
 
         if (state === 'frustration') {
+          memory.lastTopic = 'frustration';
           return `That sounds really frustrating.\nYou’re making sense, even if this feels tense.\nWhat part is bothering you the most?`;
         }
 
         if (state === 'fear') {
+          memory.lastTopic = 'fear';
           return `I hear that this feels scary right now.\nYou don’t have to figure everything out at once—we can go gently.\nWhat would help you feel a little safer in this moment?`;
         }
 
@@ -237,7 +260,24 @@
           orient = "It helps to stay with what you can express clearly and kindly right now.";
         }
 
-        return `I hear you.\n${orient}\nWhat feels most important right now?`;
+        if (memory.lastTopic === 'overwhelm') {
+          return `I hear you.\n${orient}\nWhich part is asking for your attention first right now?`;
+        }
+
+        if (memory.lastTopic === 'confusion') {
+          return `I hear you.\n${orient}\nWhich specific piece still feels foggy?`;
+        }
+
+        if (memory.lastTopic === 'frustration') {
+          return `I hear you.\n${orient}\nWhat part feels most fixable today?`;
+        }
+
+        if (memory.lastTopic === 'fear') {
+          return `I hear you.\n${orient}\nWhat would help this feel 10% safer right now?`;
+        }
+
+        memory.lastTopic = 'general';
+        return `I hear you.\n${orient}\nWhat feels most relevant to this for you right now?`;
       }
 
       addMessage(
