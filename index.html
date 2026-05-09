@@ -149,6 +149,9 @@
       const chat = document.getElementById('chat');
       const form = document.getElementById('chat-form');
       const input = document.getElementById('chat-input');
+      const memory = {
+        askedTopics: new Set(),
+      };
 
       function addMessage(text, role) {
         const div = document.createElement('div');
@@ -156,6 +159,14 @@
         div.textContent = text;
         chat.appendChild(div);
         chat.scrollTop = chat.scrollHeight;
+      }
+
+      function classifyDrainType(text) {
+        const lowered = text.toLowerCase();
+        if (lowered.includes('emotion')) return 'emotional';
+        if (lowered.includes('mental')) return 'mental';
+        if (lowered.includes('physical') || lowered.includes('body')) return 'physical';
+        return null;
       }
 
       function buildDavidReply(userText) {
@@ -177,8 +188,30 @@
           ? `"${normalized.slice(0, 90)}${normalized.length > 90 ? '…' : ''}"`
           : 'that';
 
+        const drainType = classifyDrainType(normalized);
+        if (drainType) {
+          memory.askedTopics.add('drain-classification');
+        }
+
         if (state === 'exhaustion') {
-          return `I hear the tiredness in ${preview}.\nThat sounds like depletion, not just a busy day.\nHas it felt more mental, emotional, or physical lately?`;
+          if (!memory.askedTopics.has('drain-classification')) {
+            memory.askedTopics.add('drain-classification');
+            return `I hear the tiredness in ${preview}.\nThat sounds like depletion, not just a busy day.\nHas it felt more mental, emotional, or physical lately?`;
+          }
+
+          if (drainType === 'emotional') {
+            return "That makes sense.\nEmotional exhaustion usually has something underneath it.\nWhat’s been weighing on you the most lately?";
+          }
+
+          if (drainType === 'mental') {
+            return "That tracks.\nMental exhaustion can come from carrying too many open loops.\nWhat keeps replaying in your mind the most lately?";
+          }
+
+          if (drainType === 'physical') {
+            return "That sounds really wearing.\nPhysical depletion can make everything feel heavier.\nHave sleep, stress, or your routine felt most off lately?";
+          }
+
+          return "I hear that this has been draining for a while.\nLet’s go one layer deeper so we can name what’s underneath.\nDoes this feel more connected to pressure, relationships, or expectations lately?";
         }
 
         if (state === 'overwhelm') {
