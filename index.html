@@ -163,155 +163,80 @@
         chat.scrollTop = chat.scrollHeight;
       }
 
-      function classifyDrainType(text) {
-        const lowered = text.toLowerCase();
-        if (lowered.includes('emotion')) return 'emotional';
-        if (lowered.includes('mental')) return 'mental';
-        if (lowered.includes('physical') || lowered.includes('body')) return 'physical';
-        return null;
-      }
-
       function buildDavidReply(userText) {
         const normalized = userText.trim();
         const lower = normalized.toLowerCase();
 
         const hasAny = (terms) => terms.some((term) => lower.includes(term));
-        const looksLikeFollowUp = normalized.split(/\s+/).length <= 5;
+        const topicMatchers = [
+          { key: 'improving-david', terms: ['david', 'assistant', 'bot', 'reply', 'responses', 'human'] },
+          { key: 'work', terms: ['work', 'job', 'boss', 'team', 'project', 'deadline', 'coworker'] },
+          { key: 'relationship', terms: ['him', 'her', 'partner', 'relationship', 'friend', 'family', 'wife', 'husband'] },
+          { key: 'clarity', terms: ['don\'t understand', 'do not understand', 'unclear', 'confused', 'lost'] },
+        ];
+        const topic = topicMatchers.find((m) => hasAny(m.terms))?.key || 'general';
 
-        const relationshipSignals = ['him', 'her', 'them', 'partner', 'relationship', 'friend', 'family', 'husband', 'wife', 'boyfriend', 'girlfriend'];
-        const conversationSignals = ['talk', 'talking', 'conversation', 'conversations', 'say', 'saying', 'honest', 'honestly', 'real conversation', 'hard to bring up'];
-        const relationshipConversation = hasAny(relationshipSignals) && hasAny(conversationSignals)
-          || hasAny(['real conversation with him', 'talking to him', 'talk to him', 'real conversation']);
-
-        const state = (() => {
-          if (hasAny(['i don\'t know', 'dont know', 'idk', 'not sure what to say'])) return 'vague';
-          if (hasAny(['getting david perfect', 'perfect', 'get this right', 'doing this right', 'mess this up'])) return 'perfection-pressure';
-          if (hasAny(['talking to him', 'talk to him', 'talking to her', 'talking to them']) || relationshipConversation) return 'relationship-concern';
-          if (hasAny(['tired', 'exhausted', 'drained', 'burned out', 'burnt out', 'wiped'])) return 'exhaustion';
-          if (hasAny(['overwhelmed', 'too much', 'drowning', 'swamped', 'can\'t keep up'])) return 'overwhelm';
-          if (hasAny(['confused', 'not sure', 'unclear', 'don\'t understand', 'do not understand', 'lost'])) return 'confusion';
-          if (hasAny(['frustrated', 'annoyed', 'angry', 'irritated', 'fed up'])) return 'frustration';
-          if (hasAny(['afraid', 'scared', 'fear', 'terrified', 'panic', 'worried'])) return 'fear';
-          return 'general';
+        const need = (() => {
+          if (hasAny(['need to talk', 'conversation', 'talk to', 'say this'])) return 'prepare-conversation';
+          if (hasAny(['improve', 'better', 'fix', 'make'])) return 'improve-something';
+          if (hasAny(['don\'t understand', 'do not understand', 'unclear', 'confused'])) return 'clarity';
+          if (hasAny(['stuck', 'what do i do', 'help'])) return 'next-step';
+          return 'clarify';
         })();
 
-        const preview = normalized
-          ? `"${normalized.slice(0, 90)}${normalized.length > 90 ? '…' : ''}"`
-          : 'that';
+        const pressure = (() => {
+          if (hasAny(['excited', 'hopeful', 'energized'])) return 'positive-energy';
+          if (hasAny(['tired', 'overwhelmed', 'drained', 'burned out'])) return 'fatigue';
+          if (hasAny(['frustrated', 'angry', 'annoyed'])) return 'frustration';
+          if (hasAny(['worried', 'afraid', 'scared'])) return 'fear';
+          if (hasAny(['confused', 'unclear', 'don\'t understand', 'do not understand'])) return 'confusion';
+          return 'neutral';
+        })();
 
-        const drainType = classifyDrainType(normalized);
-        if (drainType) {
-          memory.askedTopics.add('drain-classification');
+        memory.lastTopic = topic;
+
+        if (topic === 'improving-david') {
+          return `It sounds like you’re trying to improve how David feels to talk with, not just how it answers.
+What part feels least human right now?`;
         }
 
-        if (relationshipConversation || state === 'relationship-concern') {
-          memory.lastTopic = 'relationship-conversation';
-          memory.lastQuestionStyle = 'hardest-part';
-          return `It sounds like the conversation itself feels important or difficult.
-What feels hardest about talking to him directly?`;
+        if (need === 'prepare-conversation' || topic === 'relationship') {
+          return `It sounds like there’s an important conversation in front of you.
+What feels hardest about saying it directly?`;
         }
 
-        if (memory.lastTopic === 'relationship-conversation' && looksLikeFollowUp) {
-          return `That hesitation usually means the relationship matters.
-Are you more worried about conflict, being misunderstood, or disappointing him?`;
+        if (need === 'clarity' || topic === 'clarity' || pressure === 'confusion') {
+          return `That makes sense. Let’s slow it down.
+What part feels unclear right now?`;
         }
 
-        if (state === 'perfection-pressure') {
-          memory.lastTopic = 'perfection-pressure';
-          memory.lastQuestionStyle = 'priority-first';
-          return `It sounds like you may be carrying pressure to get David perfect.
-What part of David feels most important to improve first?`;
+        if (pressure === 'positive-energy') {
+          return `That sounds like good energy to notice.
+What feels most exciting or important about it?`;
         }
 
-        if (state === 'vague') {
-          const fromPrevious = memory.lastTopic && memory.lastTopic !== 'general';
-          memory.lastTopic = fromPrevious ? memory.lastTopic : 'vague';
-          memory.lastQuestionStyle = fromPrevious ? 'specific-followup' : 'clarify-anchor';
-          if (fromPrevious) {
-            return `That makes sense. "I don't know" can mean you're overloaded, not blank.
-From what you just shared, does this feel more like confusion, pressure, or frustration?`;
-          }
-
-          return `That makes sense. If words are hard to find right now, we can keep it simple.
-Is this feeling more confusing, frustrating, or tiring?`;
+        if (topic === 'work') {
+          return `It sounds like work is the main area needing attention right now.
+What part of that feels most important to sort out first?`;
         }
 
-        if (state === 'exhaustion') {
-          memory.lastTopic = 'exhaustion';
-          if (!memory.askedTopics.has('drain-classification')) {
-            memory.askedTopics.add('drain-classification');
-            return `I hear the tiredness in ${preview}.\nThat sounds like depletion, not just a busy day.\nHas it felt more mental, emotional, or physical lately?`;
-          }
-
-          if (drainType === 'emotional') {
-            return "That makes sense.\nEmotional exhaustion usually has something underneath it.\nWhat’s been weighing on you the most lately?";
-          }
-
-          if (drainType === 'mental') {
-            return "That tracks.\nMental exhaustion can come from carrying too many open loops.\nWhat keeps replaying in your mind the most lately?";
-          }
-
-          if (drainType === 'physical') {
-            return "That sounds really wearing.\nPhysical depletion can make everything feel heavier.\nHave sleep, stress, or your routine felt most off lately?";
-          }
-
-          return "I hear that this has been draining for a while.\nLet’s go one layer deeper so we can name what’s underneath.\nDoes this feel more connected to pressure, relationships, or expectations lately?";
+        if (pressure === 'fatigue') {
+          return `It sounds like you’re carrying a lot right now.
+What piece of this is draining you the most today?`;
         }
 
-        if (state === 'overwhelm') {
-          memory.lastTopic = 'overwhelm';
-          return `That sounds like a lot to carry right now.\nLet’s make this smaller so it feels doable.\nWhat is one piece we can focus on first?`;
+        if (pressure === 'frustration') {
+          return `I can hear the tension in this.
+What part is bothering you most right now?`;
         }
 
-        if (state === 'confusion') {
-          memory.lastTopic = 'confusion';
-          return `That makes sense. When something feels unclear, the next step is not to force an answer, but to name what is confusing.\nWhat part feels hardest to understand right now?`;
+        if (pressure === 'fear') {
+          return `That sounds heavy to hold alone.
+What feels most uncertain or risky about this right now?`;
         }
 
-        if (state === 'frustration') {
-          memory.lastTopic = 'frustration';
-          return `That sounds really frustrating.\nYou’re making sense, even if this feels tense.\nWhat part is bothering you the most?`;
-        }
-
-        if (state === 'fear') {
-          memory.lastTopic = 'fear';
-          return `I hear that this feels scary right now.\nYou don’t have to figure everything out at once—we can go gently.\nWhat would help you feel a little safer in this moment?`;
-        }
-
-        let orient = "We can take this one steady step at a time.";
-        if (lower.includes('work') || lower.includes('deadline') || lower.includes('project')) {
-          orient = "We can narrow this to the next practical move, not the whole mountain.";
-        } else if (lower.includes('relationship') || lower.includes('family') || lower.includes('friend')) {
-          orient = "It helps to stay with what you can express clearly and kindly right now.";
-        }
-
-        if (memory.lastTopic === 'overwhelm') {
-          memory.lastQuestionStyle = 'attention-first';
-          return `That sounds like a lot. ${orient}
-What is the smallest next step that would reduce pressure today?`;
-        }
-
-        if (memory.lastTopic === 'confusion') {
-          memory.lastQuestionStyle = 'foggy-piece';
-          return `Thanks for staying with this. ${orient}
-Which specific part is still unclear?`;
-        }
-
-        if (memory.lastTopic === 'frustration') {
-          memory.lastQuestionStyle = 'fixable-part';
-          return `I can hear the frustration. ${orient}
-Which part feels most fixable right now?`;
-        }
-
-        if (memory.lastTopic === 'fear') {
-          memory.lastQuestionStyle = 'safety-step';
-          return `That makes sense. ${orient}
-What would help this feel a little safer right now?`;
-        }
-
-        memory.lastTopic = 'general';
-        memory.lastQuestionStyle = 'meaning-first';
-        return `I want to respond to what you mean, not just the words.\nAre you feeling more confused, pressured, frustrated, or tired right now?`;
+        return `Thanks for sharing that.
+What would be most useful to focus on first?`;
       }
 
       addMessage(
