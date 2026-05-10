@@ -150,9 +150,9 @@
       const form = document.getElementById('chat-form');
       const input = document.getElementById('chat-input');
       const memory = {
-        askedTopics: new Set(),
         lastTopic: null,
-        lastQuestionStyle: null,
+        turnCount: 0,
+        lastEndedWithQuestion: false,
       };
 
       function addMessage(text, role) {
@@ -194,49 +194,84 @@
         })();
 
         memory.lastTopic = topic;
+        memory.turnCount += 1;
+
+        const shouldAskQuestion = (() => {
+          if (need === 'clarity' || pressure === 'confusion') return true;
+          if (need === 'next-step' || hasAny(['?', 'what should i do', 'can you help'])) return true;
+          if (pressure === 'fear' || pressure === 'frustration') return !memory.lastEndedWithQuestion;
+          return false;
+        })();
+
+        const finish = (line) => {
+          memory.lastEndedWithQuestion = line.trim().endsWith('?');
+          return line;
+        };
 
         if (topic === 'improving-david') {
-          return `It sounds like you’re trying to improve how David feels to talk with, not just how it answers.
-What part feels least human right now?`;
+          return finish(`You’re naming a real issue: repeated coaching structure makes David feel scripted.
+He should respond to meaning, not force a question every turn.`);
         }
 
         if (need === 'prepare-conversation' || topic === 'relationship') {
-          return `It sounds like there’s an important conversation in front of you.
-What feels hardest about saying it directly?`;
+          if (shouldAskQuestion) {
+            return finish(`It sounds like that conversation already carries emotional weight before it happens.
+What part feels hardest to say out loud?`);
+          }
+          return finish(`It sounds like that conversation already carries emotional weight before it happens.`);
         }
 
         if (need === 'clarity' || topic === 'clarity' || pressure === 'confusion') {
-          return `That makes sense. Let’s slow it down.
-What part feels unclear right now?`;
+          return finish(`Okay. Let’s slow it down together.
+What part feels unclear right now?`);
         }
 
         if (pressure === 'positive-energy') {
-          return `That sounds like good energy to notice.
-What feels most exciting or important about it?`;
+          return finish(`That sounds like energy moving toward something meaningful.`);
         }
 
         if (topic === 'work') {
-          return `It sounds like work is the main area needing attention right now.
-What part of that feels most important to sort out first?`;
+          if (shouldAskQuestion) {
+            return finish(`Work sounds like the pressure point right now.
+What would make this week feel a little more manageable?`);
+          }
+          return finish(`Work sounds like the pressure point right now.`);
         }
 
         if (pressure === 'fatigue') {
-          return `It sounds like you’re carrying a lot right now.
-What piece of this is draining you the most today?`;
+          return finish(`You sound tired in a deep way, not just busy.
+It makes sense your bandwidth feels thin.`);
         }
 
         if (pressure === 'frustration') {
-          return `I can hear the tension in this.
-What part is bothering you most right now?`;
+          if (shouldAskQuestion) {
+            return finish(`I can hear the tension in this.
+What feels most stuck?`);
+          }
+          return finish(`I can hear the tension in this.`);
         }
 
         if (pressure === 'fear') {
-          return `That sounds heavy to hold alone.
-What feels most uncertain or risky about this right now?`;
+          if (shouldAskQuestion) {
+            return finish(`That sounds heavy to hold on your own.
+What feels most uncertain right now?`);
+          }
+          return finish(`That sounds heavy to hold on your own.`);
         }
 
-        return `Thanks for sharing that.
-What would be most useful to focus on first?`;
+        if (shouldAskQuestion) {
+          return finish(`Got it.
+Where do you want to begin?`);
+        }
+
+        const neutralResponses = [
+          `I hear you. We can keep this simple.`,
+          `That makes sense. You don’t need to force clarity all at once.`,
+          `There’s a lot in that, and you’re tracking it honestly.`,
+          `I’m with you. We can take this one piece at a time.`,
+        ];
+
+        return finish(neutralResponses[memory.turnCount % neutralResponses.length]);
       }
 
       addMessage(
