@@ -43,17 +43,8 @@
         background: #f9fbfc;
       }
 
-      .header h1 {
-        margin: 0;
-        font-size: 1.05rem;
-        font-weight: 650;
-      }
-
-      .header p {
-        margin: 0.25rem 0 0;
-        color: var(--muted);
-        font-size: 0.92rem;
-      }
+      .header h1 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+      .header p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.92rem; }
 
       .chat {
         height: 60vh;
@@ -66,67 +57,19 @@
         gap: 0.8rem;
       }
 
-      .msg {
-        padding: 0.7rem 0.85rem;
-        border-radius: 12px;
-        line-height: 1.4;
-        max-width: 85%;
-        white-space: pre-wrap;
-      }
+      .msg { padding: 0.7rem 0.85rem; border-radius: 12px; line-height: 1.4; max-width: 85%; white-space: pre-wrap; }
+      .user { align-self: flex-end; background: #e7f0ff; border: 1px solid #c9dbff; }
+      .david { align-self: flex-start; background: var(--primary-soft); border: 1px solid #c9e0d9; }
 
-      .user {
-        align-self: flex-end;
-        background: #e7f0ff;
-        border: 1px solid #c9dbff;
-      }
+      .composer { border-top: 1px solid var(--border); padding: 0.9rem; display: flex; gap: 0.6rem; }
 
-      .david {
-        align-self: flex-start;
-        background: var(--primary-soft);
-        border: 1px solid #c9e0d9;
-      }
+      .composer input { flex: 1; border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; padding: 0.75rem 0.85rem; }
+      .composer input:focus { outline: 2px solid #a7d3c8; border-color: var(--primary); }
 
-      .composer {
-        border-top: 1px solid var(--border);
-        padding: 0.9rem;
-        display: flex;
-        gap: 0.6rem;
-      }
+      .composer button { border: none; border-radius: 10px; background: var(--primary); color: white; padding: 0.75rem 1rem; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+      .composer button:disabled { opacity: 0.65; cursor: not-allowed; }
 
-      .composer input {
-        flex: 1;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        font-size: 1rem;
-        padding: 0.75rem 0.85rem;
-      }
-
-      .composer input:focus {
-        outline: 2px solid #a7d3c8;
-        border-color: var(--primary);
-      }
-
-      .composer button {
-        border: none;
-        border-radius: 10px;
-        background: var(--primary);
-        color: white;
-        padding: 0.75rem 1rem;
-        font-size: 0.95rem;
-        font-weight: 600;
-        cursor: pointer;
-      }
-
-      .composer button:disabled {
-        opacity: 0.65;
-        cursor: not-allowed;
-      }
-
-      .hint {
-        color: var(--muted);
-        font-size: 0.8rem;
-        margin: 0 0.9rem 0.9rem;
-      }
+      .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0.9rem 0.9rem; }
     </style>
   </head>
   <body>
@@ -140,7 +83,7 @@
 
       <form class="composer" id="chat-form">
         <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" required />
-        <button type="submit">Send</button>
+        <button id="send-btn" type="submit">Send</button>
       </form>
       <p class="hint">David stays calm and human while asking one question that sharpens clarity.</p>
     </main>
@@ -149,11 +92,8 @@
       const chat = document.getElementById('chat');
       const form = document.getElementById('chat-form');
       const input = document.getElementById('chat-input');
-      const memory = {
-        lastTopic: null,
-        turnCount: 0,
-        lastEndedWithQuestion: false,
-      };
+      const sendBtn = document.getElementById('send-btn');
+      const conversationHistory = [];
 
       function addMessage(text, role) {
         const div = document.createElement('div');
@@ -163,67 +103,56 @@
         chat.scrollTop = chat.scrollHeight;
       }
 
-      function buildDavidReply(userText) {
-        const normalized = userText.trim();
-        const lower = normalized.toLowerCase();
-        const hasAny = (terms) => terms.some((term) => lower.includes(term));
-
-        const concern = (() => {
-          if (hasAny(["don't understand", 'do not understand', 'unclear', 'confused', 'lost'])) return 'understanding';
-          if (hasAny(['need to talk', 'conversation', 'talk to', 'say this'])) return 'conversation';
-          if (hasAny(['tired', 'overwhelmed', 'drained', 'burned out', 'exhausted'])) return 'capacity';
-          if (hasAny(['excited', 'hopeful', 'energized'])) return 'opportunity';
-          if (hasAny(['stuck', 'what do i do', 'help', 'next step'])) return 'direction';
-          if (hasAny(['frustrated', 'angry', 'annoyed'])) return 'friction';
-          if (hasAny(['worried', 'afraid', 'scared', 'anxious'])) return 'risk';
-          if (hasAny(['work', 'job', 'boss', 'team', 'project', 'deadline', 'coworker'])) return 'workload';
-          return 'general';
-        })();
-
-        const clarityReply = (() => {
-          switch (concern) {
-            case 'opportunity':
-              return `That sounds like good energy. What feels most real about it right now — the possibility, the progress, or what it could lead to?`;
-            case 'capacity':
-              return `That sounds like depletion. Is the unclear part the amount you're carrying, or the pressure around it?`;
-            case 'conversation':
-              return `It sounds like a conversation matters here. What feels unclear — what you need to say, how they might respond, or what you want from it?`;
-            case 'understanding':
-              return `Okay, let's slow it down. What part is unclear right now — the situation, the next step, or what it means for you?`;
-            case 'direction':
-              return `Got it. What's the main decision underneath this right now?`;
-            case 'friction':
-              return `I hear tension in this. Where is the friction strongest right now — expectations, communication, or timing?`;
-            case 'risk':
-              return `That sounds heavy. What feels most uncertain right now — what could happen, or how you'd handle it?`;
-            case 'workload':
-              return `Work seems like the pressure point. What feels least clear right now — priorities, ownership, or timeline?`;
-            default:
-              return `I hear you. What feels least clear right now about what's happening?`;
-          }
-        })();
-
-        memory.turnCount += 1;
-        memory.lastEndedWithQuestion = true;
-        return clarityReply;
+      function setSendingState(isSending) {
+        sendBtn.disabled = isSending;
+        input.disabled = isSending;
       }
 
-      addMessage(
-        "I’m here with you. We can keep this simple and grounded.\nStart by sharing what’s on your mind.\nWhat would help most right now?",
-        'david'
-      );
+      async function sendToDavid(userMessage) {
+        const response = await fetch('/.netlify/functions/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userMessage,
+            history: conversationHistory,
+          }),
+        });
 
-      form.addEventListener('submit', (event) => {
+        if (!response.ok) {
+          throw new Error('Unable to get response from David right now.');
+        }
+
+        const data = await response.json();
+        return data.reply;
+      }
+
+      const initialGreeting =
+        "I’m here with you. We can keep this simple and grounded.\nStart by sharing what’s on your mind.\nWhat would help most right now?";
+
+      addMessage(initialGreeting, 'david');
+      conversationHistory.push({ role: 'assistant', content: initialGreeting });
+
+      form.addEventListener('submit', async (event) => {
         event.preventDefault();
+
         const text = input.value.trim();
         if (!text) return;
 
         addMessage(text, 'user');
+        conversationHistory.push({ role: 'user', content: text });
         input.value = '';
 
-        window.setTimeout(() => {
-          addMessage(buildDavidReply(text), 'david');
-        }, 250);
+        setSendingState(true);
+        try {
+          const davidReply = await sendToDavid(text);
+          addMessage(davidReply, 'david');
+          conversationHistory.push({ role: 'assistant', content: davidReply });
+        } catch (error) {
+          addMessage('I hit a connection issue. Please try again in a moment.', 'david');
+        } finally {
+          setSendingState(false);
+          input.focus();
+        }
       });
     </script>
   </body>
