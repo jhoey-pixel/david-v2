@@ -119,6 +119,8 @@
         });
 
         if (!response.ok) {
+          const details = await response.text();
+          console.error('Chat function request failed:', response.status, details);
           throw new Error('Unable to get response from David right now.');
         }
 
@@ -148,6 +150,7 @@
           addMessage(davidReply, 'david');
           conversationHistory.push({ role: 'assistant', content: davidReply });
         } catch (error) {
+          console.error('Frontend chat error:', error);
           addMessage('I hit a connection issue. Please try again in a moment.', 'david');
         } finally {
           setSendingState(false);
