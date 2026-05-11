@@ -24,10 +24,12 @@ David should:
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
+    console.error('[chat function] Invalid method:', event.httpMethod);
     return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
   if (!process.env.OPENAI_API_KEY) {
+    console.error('[chat function] Missing OPENAI_API_KEY environment variable.');
     return { statusCode: 500, body: JSON.stringify({ error: 'OPENAI_API_KEY is not configured' }) };
   }
 
@@ -35,19 +37,18 @@ exports.handler = async (event) => {
     const { message, history = [] } = JSON.parse(event.body || '{}');
 
     if (!message || typeof message !== 'string') {
+      console.error('[chat function] Invalid request body. message is required.');
       return { statusCode: 400, body: JSON.stringify({ error: 'A message is required' }) };
     }
 
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...history.filter((item) => item?.role && item?.content).map((item) => ({
-        role: item.role,
-        content: String(item.content),
-      })),
+      ...history
+        .filter((item) => item?.role && item?.content)
+        .map((item) => ({ role: item.role, content: String(item.content) })),
       { role: 'user', content: message },
     ];
 
-    // OpenAI API call happens here: we send system prompt + conversation context + latest user message.
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -63,13 +64,18 @@ exports.handler = async (event) => {
 
     if (!openAIResponse.ok) {
       const errorPayload = await openAIResponse.text();
-      return { statusCode: 502, body: JSON.stringify({ error: 'OpenAI request failed', details: errorPayload }) };
+      console.error('[chat function] OpenAI request failed:', openAIResponse.status, errorPayload);
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: 'OpenAI request failed', details: errorPayload }),
+      };
     }
 
     const completion = await openAIResponse.json();
     const reply = completion?.choices?.[0]?.message?.content?.trim();
 
     if (!reply) {
+      console.error('[chat function] Empty reply from OpenAI:', JSON.stringify(completion));
       return { statusCode: 502, body: JSON.stringify({ error: 'OpenAI returned an empty response' }) };
     }
 
@@ -79,6 +85,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ reply }),
     };
   } catch (error) {
+    console.error('[chat function] Unexpected server error:', error);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: 'Server error', details: error.message }),
