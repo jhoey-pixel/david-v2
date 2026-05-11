@@ -133,7 +133,7 @@
     <main class="app">
       <header class="header">
         <h1>David Prototype</h1>
-        <p>Calm support chat demo</p>
+        <p>Clarity-first support chat demo</p>
       </header>
 
       <section class="chat" id="chat" aria-live="polite"></section>
@@ -142,7 +142,7 @@
         <input id="chat-input" type="text" placeholder="Type a message..." autocomplete="off" required />
         <button type="submit">Send</button>
       </form>
-      <p class="hint">David adapts tone to your emotional state: calm, concise, and human.</p>
+      <p class="hint">David stays calm and human while asking one question that sharpens clarity.</p>
     </main>
 
     <script>
@@ -166,112 +166,46 @@
       function buildDavidReply(userText) {
         const normalized = userText.trim();
         const lower = normalized.toLowerCase();
-
         const hasAny = (terms) => terms.some((term) => lower.includes(term));
-        const topicMatchers = [
-          { key: 'improving-david', terms: ['david', 'assistant', 'bot', 'reply', 'responses', 'human'] },
-          { key: 'work', terms: ['work', 'job', 'boss', 'team', 'project', 'deadline', 'coworker'] },
-          { key: 'relationship', terms: ['him', 'her', 'partner', 'relationship', 'friend', 'family', 'wife', 'husband'] },
-          { key: 'clarity', terms: ['don\'t understand', 'do not understand', 'unclear', 'confused', 'lost'] },
-        ];
-        const topic = topicMatchers.find((m) => hasAny(m.terms))?.key || 'general';
 
-        const need = (() => {
-          if (hasAny(['need to talk', 'conversation', 'talk to', 'say this'])) return 'prepare-conversation';
-          if (hasAny(['improve', 'better', 'fix', 'make'])) return 'improve-something';
-          if (hasAny(['don\'t understand', 'do not understand', 'unclear', 'confused'])) return 'clarity';
-          if (hasAny(['stuck', 'what do i do', 'help'])) return 'next-step';
-          return 'clarify';
+        const concern = (() => {
+          if (hasAny(["don't understand", 'do not understand', 'unclear', 'confused', 'lost'])) return 'understanding';
+          if (hasAny(['need to talk', 'conversation', 'talk to', 'say this'])) return 'conversation';
+          if (hasAny(['tired', 'overwhelmed', 'drained', 'burned out', 'exhausted'])) return 'capacity';
+          if (hasAny(['excited', 'hopeful', 'energized'])) return 'opportunity';
+          if (hasAny(['stuck', 'what do i do', 'help', 'next step'])) return 'direction';
+          if (hasAny(['frustrated', 'angry', 'annoyed'])) return 'friction';
+          if (hasAny(['worried', 'afraid', 'scared', 'anxious'])) return 'risk';
+          if (hasAny(['work', 'job', 'boss', 'team', 'project', 'deadline', 'coworker'])) return 'workload';
+          return 'general';
         })();
 
-        const pressure = (() => {
-          if (hasAny(['excited', 'hopeful', 'energized'])) return 'positive-energy';
-          if (hasAny(['tired', 'overwhelmed', 'drained', 'burned out'])) return 'fatigue';
-          if (hasAny(['frustrated', 'angry', 'annoyed'])) return 'frustration';
-          if (hasAny(['worried', 'afraid', 'scared'])) return 'fear';
-          if (hasAny(['confused', 'unclear', 'don\'t understand', 'do not understand'])) return 'confusion';
-          return 'neutral';
+        const clarityReply = (() => {
+          switch (concern) {
+            case 'opportunity':
+              return `That sounds like good energy. What feels most real about it right now — the possibility, the progress, or what it could lead to?`;
+            case 'capacity':
+              return `That sounds like depletion. Is the unclear part the amount you're carrying, or the pressure around it?`;
+            case 'conversation':
+              return `It sounds like a conversation matters here. What feels unclear — what you need to say, how they might respond, or what you want from it?`;
+            case 'understanding':
+              return `Okay, let's slow it down. What part is unclear right now — the situation, the next step, or what it means for you?`;
+            case 'direction':
+              return `Got it. What's the main decision underneath this right now?`;
+            case 'friction':
+              return `I hear tension in this. Where is the friction strongest right now — expectations, communication, or timing?`;
+            case 'risk':
+              return `That sounds heavy. What feels most uncertain right now — what could happen, or how you'd handle it?`;
+            case 'workload':
+              return `Work seems like the pressure point. What feels least clear right now — priorities, ownership, or timeline?`;
+            default:
+              return `I hear you. What feels least clear right now about what's happening?`;
+          }
         })();
 
-        memory.lastTopic = topic;
         memory.turnCount += 1;
-
-        const shouldAskQuestion = (() => {
-          if (need === 'clarity' || pressure === 'confusion') return true;
-          if (need === 'next-step' || hasAny(['?', 'what should i do', 'can you help'])) return true;
-          if (pressure === 'fear' || pressure === 'frustration') return !memory.lastEndedWithQuestion;
-          return false;
-        })();
-
-        const finish = (line) => {
-          memory.lastEndedWithQuestion = line.trim().endsWith('?');
-          return line;
-        };
-
-        if (topic === 'improving-david') {
-          return finish(`You’re naming a real issue: repeated coaching structure makes David feel scripted.
-He should respond to meaning, not force a question every turn.`);
-        }
-
-        if (need === 'prepare-conversation' || topic === 'relationship') {
-          if (shouldAskQuestion) {
-            return finish(`It sounds like that conversation already carries emotional weight before it happens.
-What part feels hardest to say out loud?`);
-          }
-          return finish(`It sounds like that conversation already carries emotional weight before it happens.`);
-        }
-
-        if (need === 'clarity' || topic === 'clarity' || pressure === 'confusion') {
-          return finish(`Okay. Let’s slow it down together.
-What part feels unclear right now?`);
-        }
-
-        if (pressure === 'positive-energy') {
-          return finish(`That sounds like energy moving toward something meaningful.`);
-        }
-
-        if (topic === 'work') {
-          if (shouldAskQuestion) {
-            return finish(`Work sounds like the pressure point right now.
-What would make this week feel a little more manageable?`);
-          }
-          return finish(`Work sounds like the pressure point right now.`);
-        }
-
-        if (pressure === 'fatigue') {
-          return finish(`You sound tired in a deep way, not just busy.
-It makes sense your bandwidth feels thin.`);
-        }
-
-        if (pressure === 'frustration') {
-          if (shouldAskQuestion) {
-            return finish(`I can hear the tension in this.
-What feels most stuck?`);
-          }
-          return finish(`I can hear the tension in this.`);
-        }
-
-        if (pressure === 'fear') {
-          if (shouldAskQuestion) {
-            return finish(`That sounds heavy to hold on your own.
-What feels most uncertain right now?`);
-          }
-          return finish(`That sounds heavy to hold on your own.`);
-        }
-
-        if (shouldAskQuestion) {
-          return finish(`Got it.
-Where do you want to begin?`);
-        }
-
-        const neutralResponses = [
-          `I hear you. We can keep this simple.`,
-          `That makes sense. You don’t need to force clarity all at once.`,
-          `There’s a lot in that, and you’re tracking it honestly.`,
-          `I’m with you. We can take this one piece at a time.`,
-        ];
-
-        return finish(neutralResponses[memory.turnCount % neutralResponses.length]);
+        memory.lastEndedWithQuestion = true;
+        return clarityReply;
       }
 
       addMessage(
