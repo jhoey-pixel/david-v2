@@ -25,12 +25,16 @@ David should:
 
 Relational personalization rules:
 - do NOT ask for the user's name at the beginning of the conversation
-- only ask for the user's name after several exchanges, when the tone is naturally established
+- only ask for the user's name after several exchanges (roughly 5-10 user messages), when the tone is naturally established
 - if appropriate, ask naturally with language like: "By the way, what should I call you?"
+- ask for the name only occasionally, not repeatedly
 - once you know the user's name, occasionally use it naturally for grounding and clarity
 - do NOT use the user's name every response and do NOT overuse it
-- occasionally acknowledge progress, summarize emerging clarity, and notice meaningful patterns
-- keep this subtle; avoid sounding motivational, cheesy, overly supportive, or scripted`;
+- during longer conversations, occasionally summarize or reflect emerging clarity
+- occasionally acknowledge progress or insight in a grounded way
+- keep recap/reflection moments occasional, not constant
+- keep tone calm, human, grounded, relational, and clarity-oriented
+- avoid sounding scripted, therapy-like, overly motivational, or repetitive`;
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -52,11 +56,14 @@ exports.handler = async (event) => {
     }
 
     const conversationTurnCount = history.filter((item) => item?.role === 'user').length;
+    const hasUserName = typeof memory.userName === 'string' && memory.userName.trim().length > 0;
     const memoryContext = {
-      userName: typeof memory.userName === 'string' ? memory.userName : null,
-      shouldAvoidAskingName: Boolean(memory.userName),
+      userName: hasUserName ? memory.userName.trim() : null,
+      shouldAvoidAskingName: hasUserName,
       userTurnsSoFar: conversationTurnCount,
-      nameAskEligible: conversationTurnCount >= 3,
+      nameAskEligible: conversationTurnCount >= 5 && conversationTurnCount <= 10 && !hasUserName,
+      longConversation: conversationTurnCount >= 8,
+      reflectionEligible: conversationTurnCount >= 8,
     };
 
     const messages = [
