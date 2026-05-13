@@ -55,26 +55,67 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'A message is required' }) };
     }
 
-    const conversationTurnCount = history.filter((item) => item?.role === 'user').length;
-    const hasUserName = typeof memory.userName === 'string' && memory.userName.trim().length > 0;
-    const memoryContext = {
-      userName: hasUserName ? memory.userName.trim() : null,
-      shouldAvoidAskingName: hasUserName,
-      userTurnsSoFar: conversationTurnCount,
-      nameAskEligible: conversationTurnCount >= 5 && conversationTurnCount <= 10 && !hasUserName,
-      longConversation: conversationTurnCount >= 8,
-      reflectionEligible: conversationTurnCount >= 8,
-    };
+    const sanitizedHistory = history
+      .filter((item) => item?.role && item?.content)
+      .map((item) => ({ role: item.role, content: String(item.content) }));
+
+    const userMessageCount = sanitizedHistory.filter((item) => item.role === 'user').length;
+    const assistantMessageCount = sanitizedHistory.filter((item) => item.role === 'assistant').length;
+    const exchangeCount = Math.min(userMessageCount, assistantMessageCount);
+
+    function extractNameFromMessage(input) {
+      const patterns = [
+        /(?:my name is|i am|i'm|im|call me)\s+([A-Za-z][A-Za-z'\-]{1,30})\b/i,
+        /^([A-Za-z][A-Za-z'\-]{1,30})$/,
+      ];
+      const trimmedInput = input.trim();
+      for (const pattern of patterns) {
+        const match = trimmedInput.match(pattern);
+        if (match?.[1]) return match[1];
+      }
+      return null;
+    }
+
+    const extractedName = extractNameFromMessage(message);
+    const resolvedUserName =
+      (typeof memory.userName === 'string' && memory.userName.trim()) || extractedName || null;
+    const hasUserName = typeof resolvedUserName === 'string' && resolvedUserName.length > 0;
+
+    const shouldNudgeForName = !hasUserName && exchangeCount >= 5 && exchangeCount <= 7;
+    const shouldRecapNow = exchangeCount >= 8 && exchangeCount % 3 === 2;
 
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT },
+      ...(
+        hasUserName
+          ? [{
+              role: 'system',
+              content: `The user’s name is ${resolvedUserName}. Use it occasionally, not every time.`,
+            }]
+          : []
+      ),
+      ...(
+        shouldNudgeForName
+          ? [{
+              role: 'system',
+              content: `The user’s name is not known yet. Naturally ask: ‘By the way, what should I call you?’ Do this briefly and conversationally.`,
+            }]
+          : []
+      ),
+      ...(
+        shouldRecapNow
+          ? [{
+              role: 'system',
+              content:
+                'Before your next clarity question, briefly recap what you are hearing so far in a human, grounded way (for example: “Let me pause and reflect back what I’m hearing so far…”). Keep the recap short and clarity-focused.',
+            }]
+          : []
+      ),
       {
         role: 'system',
-        content: `Conversation memory:\n${JSON.stringify(memoryContext, null, 2)}`,
+        content: `Conversation state: ${JSON.stringify({ exchangeCount, userMessageCount, assistantMessageCount, hasUserName })}`,
       },
-      ...history
-        .filter((item) => item?.role && item?.content)
-        .map((item) => ({ role: item.role, content: String(item.content) })),
+      ...sanitizedHistory,
       { role: 'user', content: message },
     ];
 
@@ -111,7 +152,14 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reply }),
+      body: JSON.stringify({
+        reply,
+        memory: {
+          ...memory,
+          userName: resolvedUserName,
+          exchangeCount,
+        },
+      }),
     };
   } catch (error) {
     console.error('[chat function] Unexpected server error:', error);

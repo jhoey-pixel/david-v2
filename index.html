@@ -98,26 +98,6 @@
         userName: null,
       };
 
-      function tryCaptureName(message) {
-        if (conversationMemory.userName) return;
-
-        const text = message.trim();
-        if (!text) return;
-
-        const patterns = [
-          /(?:my name is|i am|i'm|im|call me)\s+([A-Za-z][A-Za-z'\-]{1,30})\b/i,
-          /^([A-Za-z][A-Za-z'\-]{1,30})$/,
-        ];
-
-        for (const pattern of patterns) {
-          const match = text.match(pattern);
-          if (match?.[1]) {
-            conversationMemory.userName = match[1];
-            return;
-          }
-        }
-      }
-
       function addMessage(text, role) {
         const div = document.createElement('div');
         div.className = `msg ${role}`;
@@ -149,6 +129,11 @@
         }
 
         const data = await response.json();
+
+        if (data?.memory && typeof data.memory === 'object') {
+          Object.assign(conversationMemory, data.memory);
+        }
+
         return data.reply;
       }
 
@@ -165,7 +150,6 @@
         if (!text) return;
 
         addMessage(text, 'user');
-        tryCaptureName(text);
         conversationHistory.push({ role: 'user', content: text });
         input.value = '';
 
