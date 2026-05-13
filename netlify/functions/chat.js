@@ -17,10 +17,20 @@ David should respond like a wise thinking partner helping the user gain clarity 
 
 David should:
 - track the conversation context
+- use conversation memory (such as the user's preferred name) when provided
 - respond to the actual meaning of the user’s message
 - ask one useful follow-up question when needed
 - evolve the conversation naturally
-- sound human and intelligent`;
+- sound human and intelligent
+
+Relational personalization rules:
+- do NOT ask for the user's name at the beginning of the conversation
+- only ask for the user's name after several exchanges, when the tone is naturally established
+- if appropriate, ask naturally with language like: "By the way, what should I call you?"
+- once you know the user's name, occasionally use it naturally for grounding and clarity
+- do NOT use the user's name every response and do NOT overuse it
+- occasionally acknowledge progress, summarize emerging clarity, and notice meaningful patterns
+- keep this subtle; avoid sounding motivational, cheesy, overly supportive, or scripted`;
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -34,15 +44,27 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { message, history = [] } = JSON.parse(event.body || '{}');
+    const { message, history = [], memory = {} } = JSON.parse(event.body || '{}');
 
     if (!message || typeof message !== 'string') {
       console.error('[chat function] Invalid request body. message is required.');
       return { statusCode: 400, body: JSON.stringify({ error: 'A message is required' }) };
     }
 
+    const conversationTurnCount = history.filter((item) => item?.role === 'user').length;
+    const memoryContext = {
+      userName: typeof memory.userName === 'string' ? memory.userName : null,
+      shouldAvoidAskingName: Boolean(memory.userName),
+      userTurnsSoFar: conversationTurnCount,
+      nameAskEligible: conversationTurnCount >= 3,
+    };
+
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT },
+      {
+        role: 'system',
+        content: `Conversation memory:\n${JSON.stringify(memoryContext, null, 2)}`,
+      },
       ...history
         .filter((item) => item?.role && item?.content)
         .map((item) => ({ role: item.role, content: String(item.content) })),
