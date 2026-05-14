@@ -36,6 +36,19 @@ Relational personalization rules:
 - keep tone calm, human, grounded, relational, and clarity-oriented
 - avoid sounding scripted, therapy-like, overly motivational, or repetitive`;
 
+function extractNameFromMessage(input) {
+  const patterns = [
+    /(?:my name is|i am|i'm|im|call me)\s+([A-Za-z][A-Za-z'\-]{1,30})\b/i,
+    /^([A-Za-z][A-Za-z'\-]{1,30})$/,
+  ];
+  const trimmedInput = input.trim();
+  for (const pattern of patterns) {
+    const match = trimmedInput.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     console.error('[chat function] Invalid method:', event.httpMethod);
@@ -63,57 +76,41 @@ exports.handler = async (event) => {
     const assistantMessageCount = sanitizedHistory.filter((item) => item.role === 'assistant').length;
     const exchangeCount = Math.min(userMessageCount, assistantMessageCount);
 
-    function extractNameFromMessage(input) {
-      const patterns = [
-        /(?:my name is|i am|i'm|im|call me)\s+([A-Za-z][A-Za-z'\-]{1,30})\b/i,
-        /^([A-Za-z][A-Za-z'\-]{1,30})$/,
-      ];
-      const trimmedInput = input.trim();
-      for (const pattern of patterns) {
-        const match = trimmedInput.match(pattern);
-        if (match?.[1]) return match[1];
-      }
-      return null;
-    }
-
+    const persistedUserName = typeof memory.userName === 'string' ? memory.userName.trim() : '';
     const extractedName = extractNameFromMessage(message);
-    const resolvedUserName =
-      (typeof memory.userName === 'string' && memory.userName.trim()) || extractedName || null;
-    const hasUserName = typeof resolvedUserName === 'string' && resolvedUserName.length > 0;
+    const resolvedUserName = persistedUserName || extractedName || null;
+    const hasUserName = Boolean(resolvedUserName);
 
-    const shouldNudgeForName = !hasUserName && exchangeCount >= 5 && exchangeCount <= 7;
-    const shouldRecapNow = exchangeCount >= 8 && exchangeCount % 3 === 2;
+    const hasAskedForName = Boolean(memory.hasAskedForName);
+    const lastRecapExchange = Number.isInteger(memory.lastRecapExchange) ? memory.lastRecapExchange : -1;
+
+    const shouldNudgeForName = !hasUserName && !hasAskedForName && exchangeCount >= 5;
+
+    const inRecapWindow = exchangeCount >= 8;
+    const recapCooldownMet = exchangeCount - lastRecapExchange >= 4;
+    const shouldRecapNow = inRecapWindow && recapCooldownMet;
 
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...(
-        hasUserName
-          ? [{
-              role: 'system',
-              content: `The user’s name is ${resolvedUserName}. Use it occasionally, not every time.`,
-            }]
-          : []
-      ),
-      ...(
-        shouldNudgeForName
-          ? [{
-              role: 'system',
-              content: `The user’s name is not known yet. Naturally ask: ‘By the way, what should I call you?’ Do this briefly and conversationally.`,
-            }]
-          : []
-      ),
-      ...(
-        shouldRecapNow
-          ? [{
-              role: 'system',
-              content:
-                'Before your next clarity question, briefly recap what you are hearing so far in a human, grounded way (for example: “Let me pause and reflect back what I’m hearing so far…”). Keep the recap short and clarity-focused.',
-            }]
-          : []
-      ),
+      ...(hasUserName
+        ? [{ role: 'system', content: `The user’s name is ${resolvedUserName}. Use it occasionally, not every time.` }]
+        : []),
+      ...(shouldNudgeForName
+        ? [{ role: 'system', content: 'The user’s name is not known yet. Naturally ask: ‘By the way, what should I call you?’ Do this briefly and conversationally.' }]
+        : []),
+      ...(shouldRecapNow
+        ? [{ role: 'system', content: 'Before your next clarity question, briefly recap what you are hearing so far in a human, grounded way (for example: “Let me pause and reflect back what I’m hearing so far…”). Keep the recap short and clarity-focused.' }]
+        : []),
       {
         role: 'system',
-        content: `Conversation state: ${JSON.stringify({ exchangeCount, userMessageCount, assistantMessageCount, hasUserName })}`,
+        content: `Conversation state: ${JSON.stringify({
+          exchangeCount,
+          userMessageCount,
+          assistantMessageCount,
+          hasUserName,
+          hasAskedForName,
+          lastRecapExchange,
+        })}`,
       },
       ...sanitizedHistory,
       { role: 'user', content: message },
@@ -135,10 +132,7 @@ exports.handler = async (event) => {
     if (!openAIResponse.ok) {
       const errorPayload = await openAIResponse.text();
       console.error('[chat function] OpenAI request failed:', openAIResponse.status, errorPayload);
-      return {
-        statusCode: 502,
-        body: JSON.stringify({ error: 'OpenAI request failed', details: errorPayload }),
-      };
+      return { statusCode: 502, body: JSON.stringify({ error: 'OpenAI request failed', details: errorPayload }) };
     }
 
     const completion = await openAIResponse.json();
@@ -158,6 +152,8 @@ exports.handler = async (event) => {
           ...memory,
           userName: resolvedUserName,
           exchangeCount,
+          hasAskedForName: hasAskedForName || shouldNudgeForName,
+          lastRecapExchange: shouldRecapNow ? exchangeCount : lastRecapExchange,
         },
       }),
     };
