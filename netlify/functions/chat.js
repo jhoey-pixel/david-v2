@@ -25,8 +25,9 @@ David should:
 
 Relational personalization rules:
 - do NOT ask for the user's name at the beginning of the conversation
-- only ask for the user's name after several exchanges (roughly 5-10 user messages), when the tone is naturally established
+- ask for the user's name earlier once the conversation has started flowing (usually around exchanges 2-4), when it feels natural
 - if appropriate, ask naturally with language like: "By the way, what should I call you?"
+- or: "What name would you like me to use?"
 - ask for the name only occasionally, not repeatedly
 - once you know the user's name, occasionally use it naturally for grounding and clarity
 - do NOT use the user's name every response and do NOT overuse it
@@ -84,7 +85,11 @@ exports.handler = async (event) => {
     const hasAskedForName = Boolean(memory.hasAskedForName);
     const lastRecapExchange = Number.isInteger(memory.lastRecapExchange) ? memory.lastRecapExchange : -1;
 
-    const shouldNudgeForName = !hasUserName && !hasAskedForName && exchangeCount >= 5;
+    const shouldNudgeForName =
+      !hasUserName &&
+      !hasAskedForName &&
+      exchangeCount >= 2 &&
+      exchangeCount <= 4;
 
     const inRecapWindow = exchangeCount >= 8;
     const recapCooldownMet = exchangeCount - lastRecapExchange >= 4;
@@ -96,7 +101,7 @@ exports.handler = async (event) => {
         ? [{ role: 'system', content: `The user’s name is ${resolvedUserName}. Use it occasionally, not every time.` }]
         : []),
       ...(shouldNudgeForName
-        ? [{ role: 'system', content: 'The user’s name is not known yet. Naturally ask: ‘By the way, what should I call you?’ Do this briefly and conversationally.' }]
+        ? [{ role: 'system', content: 'The user’s name is not known yet. Briefly and naturally ask what name they want you to use (for example: “By the way, what should I call you?”).' }]
         : []),
       ...(shouldRecapNow
         ? [{ role: 'system', content: 'Before your next clarity question, briefly recap what you are hearing so far in a human, grounded way (for example: “Let me pause and reflect back what I’m hearing so far…”). Keep the recap short and clarity-focused.' }]
