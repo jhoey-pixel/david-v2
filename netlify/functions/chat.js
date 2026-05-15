@@ -78,18 +78,22 @@ exports.handler = async (event) => {
     const exchangeCount = Math.min(userMessageCount, assistantMessageCount);
 
     const persistedUserName = typeof memory.userName === 'string' ? memory.userName.trim() : '';
+    const waitingForName = Boolean(memory.waitingForName);
+    const trimmedMessage = message.trim();
     const extractedName = extractNameFromMessage(message);
-    const resolvedUserName = persistedUserName || extractedName || null;
+    const directNameReply = waitingForName && trimmedMessage.length > 0 && trimmedMessage.length <= 40 ? trimmedMessage : null;
+    const resolvedUserName = persistedUserName || extractedName || directNameReply || null;
     const hasUserName = Boolean(resolvedUserName);
 
     const hasAskedForName = Boolean(memory.hasAskedForName);
+    const nameKnown = Boolean(memory.nameKnown || hasUserName);
     const lastRecapExchange = Number.isInteger(memory.lastRecapExchange) ? memory.lastRecapExchange : -1;
 
-    const shouldNudgeForName =
-      !hasUserName &&
+    const shouldAskForNameNow =
+      !nameKnown &&
+      !waitingForName &&
       !hasAskedForName &&
-      exchangeCount >= 2 &&
-      exchangeCount <= 4;
+      exchangeCount >= 1;
 
     const inRecapWindow = exchangeCount >= 8;
     const recapCooldownMet = exchangeCount - lastRecapExchange >= 4;
@@ -100,8 +104,8 @@ exports.handler = async (event) => {
       ...(hasUserName
         ? [{ role: 'system', content: `The user’s name is ${resolvedUserName}. Use it occasionally, not every time.` }]
         : []),
-      ...(shouldNudgeForName
-        ? [{ role: 'system', content: 'The user’s name is not known yet. Briefly and naturally ask what name they want you to use (for example: “By the way, what should I call you?”).' }]
+      ...(shouldAskForNameNow
+        ? [{ role: 'system', content: 'After briefly responding to the user’s message, ask exactly this: "Before we keep going, what should I call you?" Keep it conversational and do not make it feel like a form.' }]
         : []),
       ...(shouldRecapNow
         ? [{ role: 'system', content: 'Before your next clarity question, briefly recap what you are hearing so far in a human, grounded way (for example: “Let me pause and reflect back what I’m hearing so far…”). Keep the recap short and clarity-focused.' }]
@@ -113,7 +117,10 @@ exports.handler = async (event) => {
           userMessageCount,
           assistantMessageCount,
           hasUserName,
+          nameKnown,
           hasAskedForName,
+          waitingForName,
+          shouldAskForNameNow,
           lastRecapExchange,
         })}`,
       },
@@ -156,8 +163,10 @@ exports.handler = async (event) => {
         memory: {
           ...memory,
           userName: resolvedUserName,
+          nameKnown: Boolean(resolvedUserName),
+          waitingForName: shouldAskForNameNow ? true : (waitingForName && !resolvedUserName),
           exchangeCount,
-          hasAskedForName: hasAskedForName || shouldNudgeForName,
+          hasAskedForName: hasAskedForName || shouldAskForNameNow,
           lastRecapExchange: shouldRecapNow ? exchangeCount : lastRecapExchange,
         },
       }),
